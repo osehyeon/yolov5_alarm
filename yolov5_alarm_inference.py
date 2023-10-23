@@ -7,25 +7,6 @@ import numpy as np
 import onnxruntime
 from PIL import Image
 
-def get_time_interval():
-    root = tk.Tk()
-    root.withdraw()  # hide the main window
-
-    start_time = simpledialog.askstring("Input", "Start Time (HH:MM format):", parent=root)
-    end_time = simpledialog.askstring("Input", "End Time (HH:MM format):", parent=root)
-
-    return start_time, end_time
-
-def is_within_time_interval(start_time, end_time):
-    current_time = datetime.now().time()
-    start_hour, start_minute = map(int, start_time.split(":"))
-    end_hour, end_minute = map(int, end_time.split(":"))
-
-    start_time_obj = datetime.strptime(start_time, '%H:%M').time()
-    end_time_obj = datetime.strptime(end_time, '%H:%M').time()
-
-    return start_time_obj <= current_time <= end_time_obj
-
 def preprocess_image(image, input_size):
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     image = cv2.resize(image, (input_size, input_size))
@@ -37,9 +18,9 @@ def preprocess_image(image, input_size):
 def postprocess_output(output, threshold=0.9):
     predictions = output[0].squeeze(0)
     for pred in predictions:
-        person_confidence = pred[5]
+        person_confidence = pred[5] # 0: person, 43: knife 
         if person_confidence > threshold:
-            print(f"Person detected with confidence: {person_confidence}")
+            print(f"detected with confidence: {person_confidence}")
             
 def main():
     model_path = "yolov5s.onnx"
@@ -49,15 +30,8 @@ def main():
     if not cap.isOpened():
         print("Error: Camera not found.")
         return
-
-    # UI를 사용하여 사용자로부터 시간 간격을 받아옵니다.
-    start_time, end_time = get_time_interval()
-
+    
     while True:
-        # 현재 시간이 사용자가 지정한 시간 범위 내에 있는지 확인합니다.
-        if not is_within_time_interval(start_time, end_time):
-            continue
-
         ret, frame = cap.read()
         if not ret:
             print("Error: Could not read frame.")

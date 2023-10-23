@@ -4,6 +4,7 @@ import threading
 import onnxruntime
 import cv2
 import numpy as np
+from PIL import Image, ImageTk
 
 class MiracleMorningUI:
     def __init__(self, root):
@@ -19,51 +20,67 @@ class MiracleMorningUI:
         self.current_time_label.pack(pady=20)
         self.update_time()
 
-        time_frame = tk.Frame(self.root)
-        time_frame.pack(pady=10)
-
         # Alarm Start Time
         self.start_hour_var = tk.StringVar(root)
         self.start_hour_var.set("오전")
         self.start_hour_dropdown = tk.OptionMenu(root, self.start_hour_var, "오전", "오후")
-        self.start_hour_dropdown.pack(side=tk.LEFT, padx=5, in_=time_frame)
+        self.start_hour_dropdown.pack(side=tk.LEFT, padx=10)
 
         self.start_time_var = tk.StringVar(root)
         self.start_time_entry = tk.Entry(root, textvariable=self.start_time_var, width=5, font=("Arial", 14))
-        self.start_time_entry.pack(side=tk.LEFT, padx=5, in_=time_frame)
+        self.start_time_entry.pack(side=tk.LEFT, padx=10)
         self.start_time_var.set("07:00")
 
         # Alarm End Time
         self.end_hour_var = tk.StringVar(root)
         self.end_hour_var.set("오전")
         self.end_hour_dropdown = tk.OptionMenu(root, self.end_hour_var, "오전", "오후")
-        self.end_hour_dropdown.pack(side=tk.LEFT, padx=5, in_=time_frame)
+        self.end_hour_dropdown.pack(side=tk.LEFT, padx=10)
 
         self.end_time_var = tk.StringVar(root)
         self.end_time_entry = tk.Entry(root, textvariable=self.end_time_var, width=5, font=("Arial", 14))
-        self.end_time_entry.pack(side=tk.LEFT, padx=5, in_=time_frame)
+        self.end_time_entry.pack(side=tk.LEFT, padx=10)
         self.end_time_var.set("08:00")
 
         # Confirmation Button
         self.confirm_button = tk.Button(root, text="확인", command=self.start_inference, font=("Arial", 14))
-        self.confirm_button.pack(side=tk.LEFT, padx=5, in_=time_frame)
+        self.confirm_button.pack(pady=20)
 
         # Termination Button
         self.terminate_button = tk.Button(root, text="종료", command=self.stop_inference, font=("Arial", 14))
-        self.terminate_button.pack(side=tk.LEFT, padx=5, in_=time_frame)
+        self.terminate_button.pack(pady=10)
 
         # Person confidence display
         self.confidence_label = tk.Label(root, text="Person Confidence: 0.0", font=("Arial", 14))
-        self.confidence_label.pack(pady=10)
+        self.confidence_label.pack(padx=10)
 
         # Alarm sound status display
         self.alarm_status = tk.StringVar()
         self.alarm_status.set("Alarm Sound: OFF")
         self.alarm_status_label = tk.Label(root, textvariable=self.alarm_status, font=("Arial", 14))
-        self.alarm_status_label.pack(pady=10)
+        self.alarm_status_label.pack(pady=20)
+
+        # Initialize the camera feed
+        self.init_camera()
 
         self.inference_thread = None
         self.stop_flag = threading.Event()
+
+    def init_camera(self):
+            """Initialize the camera and create a canvas for video feed."""
+            self.video_source = 0
+            self.vid = cv2.VideoCapture(self.video_source)
+            self.canvas = tk.Canvas(self.root, width=self.vid.get(cv2.CAP_PROP_FRAME_WIDTH), height=self.vid.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            self.canvas.pack(padx=10, pady=10)
+            self.update_camera_feed()
+
+    def update_camera_feed(self):
+        """Update the video frames in the UI."""
+        ret, frame = self.vid.read()
+        if ret:
+            self.photo = ImageTk.PhotoImage(image=Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+            self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+        self.root.after(10, self.update_camera_feed)
 
     def is_within_time_interval(self, start_time, end_time):
         current_time = datetime.now().time()
@@ -93,15 +110,14 @@ class MiracleMorningUI:
         
     def postprocess_output(self, output, threshold=0.9):
         predictions = output[0].squeeze(0)
-        for idx, pred in enumerate(predictions):
+        for pred in predictions:
             person_confidence = pred[5]
             if person_confidence > threshold:
                 self.confidence_label.config(text=f"Person Confidence: {person_confidence:.2f}")
                 self.alarm_status.set("Alarm Sound: ON")
+                timer = threading.Timer(5.0, self.turn_off_alarm)
+                timer.start()
                 print(f"Person detected with confidence: {person_confidence}")
-            elif person_confidence < threshold and idx == 0: 
-                self.confidence_label.config(text=f"Person Confidence: 0.00")
-                self.alarm_status.set("Alarm Sound: OFF")
 
     def start_inference(self):
         start_time = self.start_time_var.get()
