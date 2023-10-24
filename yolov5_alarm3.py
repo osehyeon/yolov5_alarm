@@ -82,8 +82,7 @@ class DetectionAlarmUI:
         image = np.expand_dims(image, axis=0)
         return image
             
-        
-    def postprocess_output(self, output, number=0, threshold=0.9):
+    def postprocess_output(self, output, number=43, threshold=0.8): # knife: 43
         predictions = output[0].squeeze(0)
         detected = False  # Variable to check if a person was detected
         box = None  # Initial value
